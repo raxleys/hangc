@@ -130,7 +130,7 @@ Image *image_from(const char *buf, size_t n)
     img->buf = strndup(buf, n);
     assert(img->buf != NULL && "Malloc failed");
     
-    img->size = n + 1;
+    img->size = n;
     img->next = NULL;
     return img;
 }
