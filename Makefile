@@ -1,12 +1,20 @@
-.PHONY: run all clean
+.PHONY: all run build check clean
 
-run: all
-	./build/hangc
+CC=cc
+EXEC=build/hangc
 
-all:
+all: build
+
+run: build
+	./$(EXEC)
+
+check: build
+	valgrind --leak-check=full ./$(EXEC)
+
+build:
 	mkdir -p build
-	gcc -o build/hangc src/main.c -Iinc -ggdb
-	chmod +x build/hangc
+	$(CC) -o $(EXEC) src/main.c -Iinc -ggdb
+	chmod +x $(EXEC)
 
 clean:
 	rm -rf build
