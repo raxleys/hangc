@@ -13,42 +13,43 @@ const char *WORDS[] = {"ant", "bear", "wolf"};
 
 char *read_file(const char *fname);
 
-typedef struct Image {
+typedef struct string {
     size_t size;
     char *buf;
-    struct Image *next;
-} Image;
+} string;
 
-Image *image_from(const char *buf, size_t n);
+typedef struct strlist {
+    string *str;
+    struct strlist *next;
+} strlist;
 
 typedef struct Images {
     size_t size;
-    Image *head;
-    Image *tail;
-    Image *active; // current image displayed
+    strlist *list;
+    strlist *active; // current image displayed
 } Images;
 
 Images *parse_images(const char *buf);
+void free_images(Images **images);
+
+string *string_dupn(const char *buf, size_t n);
+void string_free(string **str);
+strlist *strlist_new();
+void strlist_free(strlist **list);
 
 int main(int argc, char *argv[])
 {
     char *raw_images = read_file(IMAGES_F);
-    printf("Reading: %s\n", IMAGES_F);
-
     Images *images = parse_images(raw_images);
 
-    for (Image *p = images->head; p; p = p->next)
-        printf(">>>>>>>>>>\n%s\n<<<<<<<<<<\n", p->buf);
+    for (strlist *im = images->list; im; im = im->next)
+        puts(im->str->buf);
 
-    for (Image *p = images->head; p;) {
-        Image *tmp = p->next;
-        free(p->buf);
-        free(p);
-        p = tmp;
-    }
+    puts("Current image:");
+    puts(images->active->str->buf);
 
-    free(images);
-    free(raw_images);
+    free_images(&images);
+    free(raw_images); // TODO: free earlier?
     return 0;
 }
 
@@ -92,21 +93,28 @@ Images *parse_images(const char *buf)
     size_t start = 0;
     size_t end = 0;
 
+    strlist *tail = NULL;
     while (true) {
         for (; *p && *p != ','; p++)
             end++;
 
         if (*p) {
-            Image *image = image_from(buf + start, end - start);
+            /* Image *image = image_from(buf + start, end - start); */
+            string *image = string_dupn(buf + start, end - start);
             assert(image != NULL && "Malloc failed");
 
-            if (!images->head)
-                images->head = image;
-            
-            if (images->tail)
-                images->tail->next = image;
+            strlist *node = strlist_new();
+            assert(node != NULL && "Malloc failed");
+
+            node->str = image;
+
+            if (!images->list)
+                images->list = node;
+
+            if (tail)
+                tail->next = node;
         
-            images->tail = image;
+            tail = node;
             images->size++;
 
             // Consume , and \n
@@ -119,18 +127,51 @@ Images *parse_images(const char *buf)
         break;
     }
 
+    images->active = images->list;
     return images;
 }
 
-Image *image_from(const char *buf, size_t n)
+string *string_dupn(const char *buf, size_t n)
 {
-    Image *img = malloc(sizeof(*img));
-    assert(img != NULL && "Malloc failed");
+    string *str = malloc(sizeof(*str));
+    assert(str != NULL && "Malloc failed");
     
-    img->buf = strndup(buf, n);
-    assert(img->buf != NULL && "Malloc failed");
+    str->buf = strndup(buf, n);
+    assert(str->buf != NULL && "Malloc failed");
     
-    img->size = n;
-    img->next = NULL;
-    return img;
+    str->size = n;
+    return str;
+}
+
+void string_free(string **str)
+{
+    free((*str)->buf);
+    free(*str);
+    *str = NULL;
+}
+
+strlist *strlist_new()
+{
+    strlist *list = calloc(1, sizeof(*list));
+    assert(list != NULL && "Malloc failed");
+    return list;
+}
+
+void strlist_free(strlist **list)
+{
+    for (strlist *p = *list; p;) {
+        strlist *tmp = p->next;
+        string_free(&p->str);
+        free(p);
+        p = tmp;
+    }
+    
+    *list = NULL;
+}
+
+void free_images(Images **images)
+{
+    strlist_free(&(*images)->list);
+    free(*images);
+    *images = NULL;
 }

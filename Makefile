@@ -13,7 +13,7 @@ check: build
 
 build:
 	mkdir -p build
-	$(CC) -o $(EXEC) src/main.c -Iinc -ggdb
+	$(CC) -o $(EXEC) src/main.c -Iinc -Wall -Wextra -pedantic -ggdb
 	chmod +x $(EXEC)
 
 clean:
