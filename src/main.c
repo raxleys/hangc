@@ -4,15 +4,17 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <time.h>
 
 // Path from project root
 #define DATA_PATH "./data/"
 #define WORD_BANK_F DATA_PATH "words.txt"
 #define IMAGES_F DATA_PATH "images.txt"
 
-const char *WORDS[] = {"ant", "bear", "wolf"};
-
+// UTILS
 char *read_file(const char *fname);
+void seed_rand();
+void shuffle(size_t *arr, size_t n);
 
 typedef struct string {
     size_t size;
@@ -48,6 +50,8 @@ int main(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
+    seed_rand();
+
     // ASCII images
     char *raw_images = read_file(IMAGES_F);
     Images *images = parse_images(raw_images);
@@ -68,14 +72,35 @@ int main(int argc, char *argv[])
     /* for (size_t i = 0; i < nwords; i++) */
         /* printf("Word #%zu: %s\n", i + 1, words[i]->buf); */
 
+    // Word Queue
+    // Select the word order in advance. This way, we are guaranteed
+    // not to have duplicate words until the entire list has been
+    // exhausted
+    size_t *word_queue = malloc(nwords * sizeof(*word_queue));
+    assert(word_queue != NULL && "Malloc failed");
+    for (size_t i = 0; i < nwords; i++)
+        word_queue[i] = i;
+
+    // Game loop
+    while (true) {
+        shuffle(word_queue, nwords);
+        for (size_t i = 0; i < nwords; i++) {
+            size_t wordi = word_queue[i];
+            printf("Next word: %s\n", words[wordi]->buf);
+        }
+
+        break;
+    }
+
     // Free memory
     free_words(&words, nwords);
     free_images(&images);
-    free(raw_images); // TODO: free earlier?
+    free(raw_images);
     free(raw_wordlist);
     return 0;
 }
 
+// UTILS
 char *read_file(const char *fname)
 {
     FILE *file = fopen(fname, "r");
@@ -106,6 +131,24 @@ char *read_file(const char *fname)
     buf[fsize] = '\0';
     return buf;
 }
+
+void seed_rand()
+{
+    srand(time(NULL));
+}
+
+// https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
+void shuffle(size_t *arr, size_t n)
+{
+    for (size_t i = n - 1; i > 0; i--) {
+        size_t j = rand() % (i + 1);
+        int tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+    }
+}
+
+// OTHER
 
 Images *parse_images(const char *buf)
 {
@@ -222,9 +265,7 @@ size_t parse_wordlist(string ***wordlist, char *raw_wordlist)
             break;
 
         string *w = string_dupn(raw_wordlist + start, end - start);
-        printf("DUPED: %s\n", w->buf);
         assert(w != NULL && "Malloc failed");
-
         words[words_len++] = w;
 
         // Skip empty strings
