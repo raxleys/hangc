@@ -163,21 +163,13 @@ int main(int argc, char *argv[])
             }
         }
 
-        // TODO: Check win condition
-        if (was_miss) {
+        if (was_miss)
             images->active = images->active->next;
-            if (images->active == images->tail) {
-                term_clear();
-                render_state(images, gameword, guessed_letters);
-                printf("GAME OVER!");
-                exit(1);
-            }
-        }
 
-        /* display_gameword(gameword); */
-        /* putchar('\n'); */
         term_clear();
         render_state(images, gameword, guessed_letters);
+        if (images->active == images->tail)
+            break;
     }
 
     // Out of guesses
