@@ -5,13 +5,21 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include <time.h>
+#include <stdint.h>
 
 // Path from project root
 #define DATA_PATH "./data/"
 #define WORD_BANK_F DATA_PATH "words.txt"
 #define IMAGES_F DATA_PATH "images.txt"
+#define NLETTERS 26
+
+// ANSI escape codes for text colors
+#define ASCII_RESET "\033[0m"
+#define ASCII_GRAY "\033[90m"
 
 // UTILS
+#define arg_shift(xs, xs_sz) (assert((xs_sz) > 0), (xs_sz)--, *(xs)++)
+
 char *read_file(const char *fname);
 void seed_rand();
 void shuffle(size_t *arr, size_t n);
@@ -39,7 +47,17 @@ void free_images(Images **images);
 size_t parse_wordlist(string ***wordlist, char *raw_wordlist);
 void free_words(string ***wordlist, size_t nwords);
 
+bool was_guessed(char let, uint32_t guessed_letters);
+void set_guessed(char let, uint32_t *guessed_letters);
+void display_alphabet(uint32_t guessed_letters);
+void display_gameword(const string *gameword);
+void render_state(const Images *images, const string *gameword,
+                  uint32_t guessed_letters);
+
+string *string_dup(const char *buf);
 string *string_dupn(const char *buf, size_t n);
+string *string_copy(const string *word);
+string *string_to_upper(string *word);
 void string_free(string **str);
 strlist *strlist_new();
 void strlist_free(strlist **list);
@@ -47,8 +65,8 @@ void strlist_free(strlist **list);
 int main(int argc, char *argv[])
 {
     // Hush gcc!
-    (void)argc;
-    (void)argv;
+    /* (void)argc; */
+    /* (void)argv; */
 
     seed_rand();
 
@@ -59,10 +77,10 @@ int main(int argc, char *argv[])
     // Print images
     /* for (strlist *im = images->list; im; im = im->next) */
         /* puts(im->str->buf); */
-
+#if 0
     puts("Current image:");
     puts(images->active->str->buf);
-
+#endif
     // Wordlist
     char *raw_wordlist = read_file(WORD_BANK_F);
     string **words;
@@ -82,15 +100,66 @@ int main(int argc, char *argv[])
         word_queue[i] = i;
 
     // Game loop
-    while (true) {
-        shuffle(word_queue, nwords);
-        for (size_t i = 0; i < nwords; i++) {
-            size_t wordi = word_queue[i];
-            printf("Next word: %s\n", words[wordi]->buf);
+    /* while (true) { */
+        /* shuffle(word_queue, nwords); */
+        /* for (size_t i = 0; i < nwords; i++) { */
+            /* size_t wordi = word_queue[i]; */
+            /* printf("Next word: %s\n", words[wordi]->buf); */
+        /* } */
+
+        /* break; */
+    /* } */
+
+    // Testing
+    // Have word & guesses provided via CLI
+    if (argc != 3) {
+        puts("Usage: [WORD] [GUESS]");
+        return 1;
+    }
+
+    int argi = argc;
+    arg_shift(argv, argi);
+
+    // Target word
+    string *word = string_to_upper(string_dup(arg_shift(argv, argi)));
+    printf("Word: %s\n", word->buf);
+
+    // Current word status
+    string *gameword = string_copy(word);
+    memset(gameword->buf, '_', gameword->size);
+
+    // User-guessed letters
+    uint32_t guessed_letters = 0;
+    
+    // Display game to user
+    /* render_state(images, gameword, guessed_letters); */
+
+    for (char *guess = arg_shift(argv, argi); *guess != '\0'; guess++) {
+        // Display game to user
+        render_state(images, gameword, guessed_letters);
+
+        char let = toupper(*guess);
+        printf("\nGuess: %c\n", let);
+
+        // Check if already guessed
+        if (was_guessed(let - 'A', guessed_letters)) {
+            printf("'%c' was already guessed!\n\n", let);
+            continue;
         }
 
-        break;
+        set_guessed(let - 'A', &guessed_letters);
+        /* display_alphabet(guessed_letters); */
+        
+        for (size_t i = 0; i < word->size; i++) {
+            if (word->buf[i] == let) {
+                gameword->buf[i] = let;
+            }
+        }
+
+        /* display_gameword(gameword); */
+        putchar('\n');
     }
+    free(gameword);
 
     // Free memory
     free_words(&words, nwords);
@@ -208,6 +277,24 @@ string *string_dupn(const char *buf, size_t n)
     return str;
 }
 
+string *string_dup(const char *buf)
+{
+    size_t len = strlen(buf);
+    return string_dupn(buf, len);
+}
+
+string *string_copy(const string *word)
+{
+    return string_dup(word->buf);
+}
+
+string *string_to_upper(string *word)
+{
+    for (char *c = word->buf; *c != '\0'; c++)
+        *c = toupper(*c);
+    return word;
+}
+
 void string_free(string **str)
 {
     free((*str)->buf);
@@ -290,4 +377,59 @@ void free_words(string ***wordlist, size_t nwords)
 
     free(words);
     *wordlist = NULL;
+}
+
+// let refers to a letter in the alphabet from 0-26, not the ASCII
+// value.
+bool was_guessed(char let, uint32_t guessed_letters)
+{
+    return (guessed_letters & (1u << let)) != 0;
+}
+
+// let refers to a letter in the alphabet from 0-26, not the ASCII
+// value.
+void set_guessed(char let, uint32_t *guessed_letters)
+{
+    *guessed_letters |= 1u << let;
+}
+
+void display_alphabet(uint32_t guessed_letters)
+{
+    for (char i = 0; i < NLETTERS; i++) {
+        if (was_guessed(i, guessed_letters)) {
+            printf("%s", ASCII_GRAY);
+        }
+
+        printf("%c%s", 'A' + i, ASCII_RESET);
+
+        if ((i + 1) % 9 == 0) {
+            putchar('\n');
+        } else {
+            putchar(' ');
+        }
+    }
+    putchar('\n');
+}
+
+void display_gameword(const string *gameword)
+{
+    for (size_t i = 0; i < gameword->size; i++) {
+        putchar(gameword->buf[i]);
+        if (i < gameword->size - 1)
+            putchar(' ');
+    }
+    putchar('\n');
+}
+
+void render_state(const Images *images, const string *gameword,
+                  uint32_t guessed_letters)
+{
+    puts(images->active->str->buf);
+
+    printf("\nWord: ");
+    display_gameword(gameword);
+    putchar('\n');
+    
+    // Display guessed letters
+    display_alphabet(guessed_letters);
 }
