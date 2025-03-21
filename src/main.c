@@ -16,6 +16,7 @@
 // ANSI escape codes for text colors
 #define ASCII_RESET "\033[0m"
 #define ASCII_GRAY "\033[90m"
+#define TERM_CLEAR "\033[H\033[J"
 
 // UTILS
 #define arg_shift(xs, xs_sz) (assert((xs_sz) > 0), (xs_sz)--, *(xs)++)
@@ -36,7 +37,8 @@ typedef struct strlist {
 
 typedef struct Images {
     size_t size;
-    strlist *list;
+    strlist *head;
+    strlist *tail;
     strlist *active; // current image displayed
 } Images;
 
@@ -53,12 +55,15 @@ void display_alphabet(uint32_t guessed_letters);
 void display_gameword(const string *gameword);
 void render_state(const Images *images, const string *gameword,
                   uint32_t guessed_letters);
+void term_clear();
 
 string *string_dup(const char *buf);
 string *string_dupn(const char *buf, size_t n);
 string *string_copy(const string *word);
 string *string_to_upper(string *word);
 void string_free(string **str);
+bool string_eq(string *s1, string *s2);
+
 strlist *strlist_new();
 void strlist_free(strlist **list);
 
@@ -134,9 +139,9 @@ int main(int argc, char *argv[])
     // Display game to user
     /* render_state(images, gameword, guessed_letters); */
 
+    render_state(images, gameword, guessed_letters);
     for (char *guess = arg_shift(argv, argi); *guess != '\0'; guess++) {
         // Display game to user
-        render_state(images, gameword, guessed_letters);
 
         char let = toupper(*guess);
         printf("\nGuess: %c\n", let);
@@ -149,16 +154,39 @@ int main(int argc, char *argv[])
 
         set_guessed(let - 'A', &guessed_letters);
         /* display_alphabet(guessed_letters); */
-        
+
+        bool was_miss = true;
         for (size_t i = 0; i < word->size; i++) {
             if (word->buf[i] == let) {
                 gameword->buf[i] = let;
+                was_miss = false;
+            }
+        }
+
+        // TODO: Check win condition
+        if (was_miss) {
+            images->active = images->active->next;
+            if (images->active == images->tail) {
+                term_clear();
+                render_state(images, gameword, guessed_letters);
+                printf("GAME OVER!");
+                exit(1);
             }
         }
 
         /* display_gameword(gameword); */
-        putchar('\n');
+        /* putchar('\n'); */
+        term_clear();
+        render_state(images, gameword, guessed_letters);
     }
+
+    // Out of guesses
+    if (!string_eq(word, gameword)) {
+        printf("GAME OVER!\n");
+    } else {
+        printf("YOU WON!\n");
+    }
+
     free(gameword);
 
     // Free memory
@@ -227,8 +255,6 @@ Images *parse_images(const char *buf)
     const char *p = buf;
     size_t start = 0;
     size_t end = 0;
-
-    strlist *tail = NULL;
     while (true) {
         for (; *p && *p != ','; p++)
             end++;
@@ -242,13 +268,13 @@ Images *parse_images(const char *buf)
 
             node->str = image;
 
-            if (!images->list)
-                images->list = node;
+            if (!images->head)
+                images->head = node;
 
-            if (tail)
-                tail->next = node;
+            if (images->tail)
+                images->tail->next = node;
         
-            tail = node;
+            images->tail = node;
             images->size++;
 
             // Consume , and \n
@@ -261,7 +287,7 @@ Images *parse_images(const char *buf)
         break;
     }
 
-    images->active = images->list;
+    images->active = images->head;
     return images;
 }
 
@@ -295,6 +321,11 @@ string *string_to_upper(string *word)
     return word;
 }
 
+bool string_eq(string *s1, string *s2)
+{
+    return strcmp(s1->buf, s2->buf) == 0;
+}
+
 void string_free(string **str)
 {
     free((*str)->buf);
@@ -323,7 +354,7 @@ void strlist_free(strlist **list)
 
 void free_images(Images **images)
 {
-    strlist_free(&(*images)->list);
+    strlist_free(&(*images)->head);
     free(*images);
     *images = NULL;
 }
@@ -432,4 +463,10 @@ void render_state(const Images *images, const string *gameword,
     
     // Display guessed letters
     display_alphabet(guessed_letters);
+}
+
+void term_clear()
+{
+    if (strcmp(getenv("TERM"), "dumb") != 0)
+        printf("%s", TERM_CLEAR);
 }
