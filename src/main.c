@@ -179,9 +179,11 @@ int main(int argc, char *argv[])
         printf("YOU WON!\n");
     }
 
-    free(gameword);
 
     // Free memory
+    free(word_queue);
+    string_free(&gameword);
+    string_free(&word);
     free_words(&words, nwords);
     free_images(&images);
     free(raw_images);
