@@ -1,6 +1,7 @@
-.PHONY: all run build check clean
+.PHONY: all run build clean
 
 CC=cc
+CFLAGS=-Wall -Wextra -pedantic -ggdb
 EXEC=build/hangc
 
 all: build
@@ -8,13 +9,9 @@ all: build
 run: build
 	./$(EXEC)
 
-check: build
-	valgrind --leak-check=full ./$(EXEC)
-
 build:
 	mkdir -p build
-	$(CC) -o $(EXEC) src/main.c -Iinc -Wall -Wextra -pedantic -ggdb
-	chmod +x $(EXEC)
+	$(CC) -o $(EXEC) src/hangc.c -Iinc $(CFLAGS)
 
 clean:
 	rm -rf build
