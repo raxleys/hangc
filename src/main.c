@@ -67,7 +67,7 @@ int main()
             printf("\nEnter a guess: ");
             int c = read_char();
             if (c < 0)
-                exit(0); // TODO: cleanup memory
+                goto cleanup;
 
             if (!isalnum(c)) {
                 term_clear();
@@ -120,6 +120,7 @@ int main()
         printf("\nPlay again? (Y/n): ");
     } while (tolower(read_char()) != 'n');
 
+ cleanup:
     // Free memory
     free(word_queue);
     string_free(&gameword);
