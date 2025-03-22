@@ -11,6 +11,8 @@
 #define DATA_PATH "./data/"
 #define WORD_BANK_F DATA_PATH "words.txt"
 #define IMAGES_F DATA_PATH "images.txt"
+/* #define WORD_BANK_F DATA_PATH "words-dos.txt" */
+/* #define IMAGES_F DATA_PATH "images-dos.txt" */
 #define NLETTERS 26
 
 // ANSI escape codes for text colors
@@ -135,7 +137,7 @@ int main(int argc, char *argv[])
 
     // User-guessed letters
     uint32_t guessed_letters = 0;
-    
+
     // Display game to user
     /* render_state(images, gameword, guessed_letters); */
 
@@ -194,7 +196,7 @@ int main(int argc, char *argv[])
 // UTILS
 char *read_file(const char *fname)
 {
-    FILE *file = fopen(fname, "r");
+    FILE *file = fopen(fname, "rb");
     if (file == NULL) {
         perror("Failed to open file");
         return NULL;
@@ -245,7 +247,7 @@ Images *parse_images(const char *buf)
 {
     Images *images = calloc(1, sizeof(*images));
     assert(images != NULL && "Malloc failed");
-    
+
     const char *p = buf;
     size_t start = 0;
     size_t end = 0;
@@ -267,14 +269,13 @@ Images *parse_images(const char *buf)
 
             if (images->tail)
                 images->tail->next = node;
-        
+
             images->tail = node;
             images->size++;
 
-            // Consume , and \n
-            end += 2;
+            // Consume , and newline character(s)
+            for (; *p != '\0' && (*p == ',' || *p == '\n' || *p == '\r'); p++, end++);
             start = end;
-            p += 2;
             continue;
         }
 
@@ -289,10 +290,10 @@ string *string_dupn(const char *buf, size_t n)
 {
     string *str = malloc(sizeof(*str));
     assert(str != NULL && "Malloc failed");
-    
+
     str->buf = strndup(buf, n);
     assert(str->buf != NULL && "Malloc failed");
-    
+
     str->size = n;
     return str;
 }
@@ -342,7 +343,7 @@ void strlist_free(strlist **list)
         free(p);
         p = tmp;
     }
-    
+
     *list = NULL;
 }
 
@@ -360,7 +361,7 @@ size_t parse_wordlist(string ***wordlist, char *raw_wordlist)
     size_t nwords = 0;
     for (char *p = raw_wordlist; *p != '\0'; p++)
         if (*p == '\n') nwords++;
-    
+
     size_t words_len = 0;
     string **words = malloc(nwords * sizeof(*words));
     assert(words != NULL && "Malloc failed");
@@ -370,7 +371,7 @@ size_t parse_wordlist(string ***wordlist, char *raw_wordlist)
     size_t end = 0;
 
     while (true) {
-        for (; *p != '\0' && *p != '\n'; p++)
+        for (; *p != '\0' && *p != '\n' && *p != '\r'; p++)
             end++;
 
         if (*p == '\0')
@@ -383,7 +384,7 @@ size_t parse_wordlist(string ***wordlist, char *raw_wordlist)
         // Skip empty strings
         for (; *p != '\0' && isspace(*p); p++)
             end++;
-        
+
         if (*p == '\0')
             break;
 
@@ -454,7 +455,7 @@ void render_state(const Images *images, const string *gameword,
     printf("\nWord: ");
     display_gameword(gameword);
     putchar('\n');
-    
+
     // Display guessed letters
     display_alphabet(guessed_letters);
 }
