@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include "hangc.h"
 
-int main(int argc, char *argv[])
+int main()
 {
     seed_rand();
 
@@ -16,21 +16,10 @@ int main(int argc, char *argv[])
     char *raw_images = read_file(IMAGES_F);
     Images *images = parse_images(raw_images);
 
-    // Print images
-    /* for (strlist *im = images->list; im; im = im->next) */
-        /* puts(im->str->buf); */
-#if 0
-    puts("Current image:");
-    puts(images->active->str->buf);
-#endif
     // Wordlist
     char *raw_wordlist = read_file(WORD_BANK_F);
     string **words;
     size_t nwords = parse_wordlist(&words, raw_wordlist);
-
-    // Print words
-    /* for (size_t i = 0; i < nwords; i++) */
-        /* printf("Word #%zu: %s\n", i + 1, words[i]->buf); */
 
     // Word Queue
     // Select the word order in advance. This way, we are guaranteed
@@ -41,86 +30,99 @@ int main(int argc, char *argv[])
     for (size_t i = 0; i < nwords; i++)
         word_queue[i] = i;
 
-    // Game loop
-    /* while (true) { */
-        /* shuffle(word_queue, nwords); */
-        /* for (size_t i = 0; i < nwords; i++) { */
-            /* size_t wordi = word_queue[i]; */
-            /* printf("Next word: %s\n", words[wordi]->buf); */
-        /* } */
-
-        /* break; */
-    /* } */
-
-    // Testing
-    // Have word & guesses provided via CLI
-    if (argc != 3) {
-        puts("Usage: [WORD] [GUESS]");
-        return 1;
-    }
-
-    int argi = argc;
-    arg_shift(argv, argi);
-
-    // Target word
-    string *word = string_to_upper(string_dup(arg_shift(argv, argi)));
-    printf("Word: %s\n", word->buf);
-
-    // Current word status
-    string *gameword = string_copy(word);
-    memset(gameword->buf, '_', gameword->size);
-
-    // User-guessed letters
+    string *word = NULL;
+    string *gameword = NULL;
+    size_t next_word = nwords;
     uint32_t guessed_letters = 0;
 
-    // Display game to user
-    /* render_state(images, gameword, guessed_letters); */
-
-    render_state(images, gameword, guessed_letters);
-    for (char *guess = arg_shift(argv, argi); *guess != '\0'; guess++) {
-        // Display game to user
-
-        char let = toupper(*guess);
-        printf("\nGuess: %c\n", let);
-
-        // Check if already guessed
-        if (was_guessed(let - 'A', guessed_letters)) {
-            printf("'%c' was already guessed!\n\n", let);
-            continue;
+    // Game Loop
+    do {
+        // Reshuffle word list after all words exhausted
+        if (next_word >= nwords) {
+            shuffle(word_queue, nwords);
+            next_word = 0;
         }
 
-        set_guessed(let - 'A', &guessed_letters);
-        /* display_alphabet(guessed_letters); */
+        word = words[word_queue[next_word++]];
+        printf("Next word: %s\n", word->buf);
 
-        bool was_miss = true;
-        for (size_t i = 0; i < word->size; i++) {
-            if (word->buf[i] == let) {
-                gameword->buf[i] = let;
-                was_miss = false;
+        // Current word status
+        if (gameword != NULL)
+            string_free(&gameword);
+        gameword = string_copy(word);
+        memset(gameword->buf, '_', gameword->size);
+
+        // User-guessed letters
+        guessed_letters = 0;
+
+        // Reset image
+        images->active = images->head;
+
+        // Display game to user
+        term_clear();
+        render_state(images, gameword, guessed_letters);
+
+        // Main loop
+        while (true) {
+            printf("\nEnter a guess: ");
+            int c = read_char();
+            if (c < 0)
+                exit(0); // TODO: cleanup memory
+
+            if (!isalnum(c)) {
+                term_clear();
+                render_state(images, gameword, guessed_letters);
+                puts("\nInvalid character!");
+                continue;
+            }
+
+            char ch = (char)toupper(c);
+
+            // Check if already guessed
+            if (was_guessed(ch - 'A', guessed_letters)) {
+                printf("'%c' was already guessed!\n\n", ch);
+                continue;
+            }
+
+            set_guessed(ch - 'A', &guessed_letters);
+
+            // Check if guess was correct
+            bool was_miss = true;
+            for (size_t i = 0; i < word->size; i++) {
+                if (word->buf[i] == ch) {
+                    gameword->buf[i] = ch;
+                    was_miss = false;
+                }
+            }
+
+            if (was_miss)
+                images->active = images->active->next;
+
+            term_clear();
+            render_state(images, gameword, guessed_letters);
+            if (was_miss) {
+                puts("\nGuess was incorrect!");
+                if (images->active == images->tail) {
+                    puts("You lost!");
+                    break;
+                }
+            } else {
+                puts("\nGuess was correct!");
+                if(!was_miss && string_eq(word, gameword)) {
+                    puts("You won!");
+                    break;
+                }
             }
         }
 
-        if (was_miss)
-            images->active = images->active->next;
+        printf("The word was: %s\n", word->buf);
 
-        term_clear();
-        render_state(images, gameword, guessed_letters);
-        if (images->active == images->tail)
-            break;
-    }
-
-    // Out of guesses
-    if (!string_eq(word, gameword)) {
-        printf("GAME OVER!\n");
-    } else {
-        printf("YOU WON!\n");
-    }
-
+        printf("\nPlay again? (Y/n): ");
+    } while (tolower(read_char()) != 'n');
 
     // Free memory
     free(word_queue);
     string_free(&gameword);
-    string_free(&word);
     free_words(&words, nwords);
     free_images(&images);
     free(raw_images);
@@ -176,8 +178,26 @@ void shuffle(size_t *arr, size_t n)
     }
 }
 
-// OTHER
+int read_char()
+{
+    int c = getchar();
+    if (c == EOF)
+        return -1;
+    else if (c == '\n')
+        return c;
 
+    // Consume newline
+    while (getchar() != '\n');
+
+    // Handle DOS
+    if (c == '\r')
+        return '\n';
+
+    return c;
+}
+
+
+// OTHER
 Images *parse_images(const char *buf)
 {
     Images *images = calloc(1, sizeof(*images));
@@ -314,7 +334,7 @@ size_t parse_wordlist(string ***wordlist, char *raw_wordlist)
 
         string *w = string_dupn(raw_wordlist + start, end - start);
         assert(w != NULL && "Malloc failed");
-        words[words_len++] = w;
+        words[words_len++] = string_to_upper(w);
 
         // Skip empty strings
         for (; *p != '\0' && isspace(*p); p++)

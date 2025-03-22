@@ -71,5 +71,6 @@ void term_clear();
 char *read_file(const char *fname);
 void seed_rand();
 void shuffle(size_t *arr, size_t n);
+int read_char();
 
 #endif // HANGC_H
